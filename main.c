@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef largemem
 #define PROGRAM_MEM_BYTES 3000000
@@ -73,8 +74,13 @@ int main (int argc, char *argv[]) {
   /* prog_size -= 1; */
 
   fclose(bf);
-  
+
+  #ifdef growablemem
+  unsigned int prog_mem_size = 1;
+  CELL_TYPE* prog_mem = calloc(prog_mem_size, sizeof(CELL_TYPE));
+  #else
   CELL_TYPE prog_mem[PROGRAM_MEM_BYTES] = {0};
+  #endif
 
   unsigned int prog_ptr = 0;
 
@@ -143,6 +149,24 @@ int main (int argc, char *argv[]) {
     #endif
     switch (*inst) {
     case TOK_NEXT:
+	  #ifdef growablemem
+	  if (prog_ptr >= prog_mem_size - 1) {
+		unsigned int new_prog_mem_size = prog_mem_size * 2;
+		CELL_TYPE* new_prog_mem = realloc(prog_mem, new_prog_mem_size * sizeof(CELL_TYPE));
+        #ifdef verbose
+		printf("Resizing program memory to %d bytes\n", new_prog_mem_size);
+        #endif
+		if (!new_prog_mem) {
+		  printf("Unable to resize program memory!");
+		  free(prog_mem);
+		  return 1;
+		}
+		memset(new_prog_mem + prog_mem_size, 0, prog_mem_size);
+		prog_mem_size = new_prog_mem_size;
+		prog_mem = new_prog_mem;
+	  }
+	  prog_ptr ++;
+	  #else
       if  (prog_ptr < PROGRAM_MEM_BYTES - 1)
 		prog_ptr ++;
       else {
@@ -153,6 +177,7 @@ int main (int argc, char *argv[]) {
 		return 1;
         #endif
       }
+	  #endif
       break;
     case TOK_PREV:
       if (prog_ptr > 0)
@@ -277,5 +302,9 @@ int main (int argc, char *argv[]) {
   #endif
 
   free(prog);
+  free(instructions);
+  #ifdef growablemem
+  free(prog_mem);
+  #endif
   return 0;
 }
