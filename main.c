@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <stdint.h>
 
+#ifdef largemem
+#define PROGRAM_MEM_BYTES 3000000
+#else
 #define PROGRAM_MEM_BYTES 30000
+#endif
 
 enum TOKEN {
   TOK_NEXT, // >
@@ -17,7 +22,19 @@ enum TOKEN {
   TOK_WS, // ' '
 };
 
+#ifdef largecells
+#define CELL_TYPE uint16_t
+const CELL_TYPE max_cell = UINT16_MAX;
+#else
+#define CELL_TYPE uint8_t
+const CELL_TYPE max_cell = UINT8_MAX;
+#endif
+
 int main (int argc, char *argv[]) {
+  #ifdef largecells
+  printf("WARNING: %s was compiled with large (16 bit) cells, normal brainf**k programs may not work\n", argv[0]);
+  #endif
+
   if (!argv[1]) {
     printf("Please pass a brainf**k file");
     return 1;
@@ -30,16 +47,19 @@ int main (int argc, char *argv[]) {
   
   unsigned int prog_malloc = 1;
   unsigned int prog_size = 0;
-  char* prog = malloc(prog_malloc * sizeof(char));
-  char prog_char;
+  CELL_TYPE* prog = malloc(prog_malloc * sizeof(CELL_TYPE));
+  CELL_TYPE prog_char;
   while (!feof(bf)) {
     if (prog_size >= prog_malloc) {
       prog_malloc *= 2;
-      char* new_prog = realloc(prog, prog_malloc * sizeof(char));
+      CELL_TYPE* new_prog = realloc(prog, prog_malloc * sizeof(CELL_TYPE));
+      #ifdef verbose
+      printf("Resizing input buffer to %d chars\n", prog_malloc);
+      #endif
       if (!new_prog) {
-	printf("Unable to realloc file array!");
-	free(prog);
-	return 1;
+		printf("Unable to realloc file array!");
+		free(prog);
+		return 1;
       }
       prog = new_prog;
     }
@@ -54,17 +74,17 @@ int main (int argc, char *argv[]) {
 
   fclose(bf);
   
-  char prog_mem[PROGRAM_MEM_BYTES] = {0};
+  CELL_TYPE prog_mem[PROGRAM_MEM_BYTES] = {0};
 
   unsigned int prog_ptr = 0;
 
 
-  enum TOKEN instructions[prog_size];
+  enum TOKEN* instructions = malloc(prog_size * sizeof(enum TOKEN));
 
   int matching_brackets = 0;
 
   for (int i = 0; i < prog_size; i++) {
-    const char c = prog[i];
+    const CELL_TYPE c = prog[i];
     switch (c) {
     case '>':
       instructions[i] = TOK_NEXT;
@@ -107,7 +127,7 @@ int main (int argc, char *argv[]) {
   #ifdef verbose
   unsigned int output_pos = 0;
   unsigned int output_size = 1;
-  char* output = malloc(output_size * sizeof(char));
+  CELL_TYPE* output = malloc(output_size * sizeof(CELL_TYPE));
   #endif
 
   if (matching_brackets != 0) {
@@ -117,73 +137,73 @@ int main (int argc, char *argv[]) {
 
   for (int i = 0; i < prog_size; i++) {
     const enum TOKEN* inst = &instructions[i];
-    char* curr_ptr = &prog_mem[prog_ptr];
+    CELL_TYPE* curr_ptr = &prog_mem[prog_ptr];
     #ifdef verbose
     printf("%d %d: %d, %c\n", i, prog_ptr, *curr_ptr, *curr_ptr);
     #endif
     switch (*inst) {
     case TOK_NEXT:
       if  (prog_ptr < PROGRAM_MEM_BYTES - 1)
-	prog_ptr ++;
-	else {
-	  #ifdef wraparound
-	  prog_ptr = 0;
-	  #else
-	  printf("Stack overflow at %d\n", i);
-	  return 1;
-	  #endif
-	}
+		prog_ptr ++;
+      else {
+        #ifndef nowraparound
+		prog_ptr = 0;
+        #else
+		printf("Stack overflow at %d\n", i);
+		return 1;
+        #endif
+      }
       break;
     case TOK_PREV:
       if (prog_ptr > 0)
-	prog_ptr --;
+		prog_ptr --;
       else {
-	#ifdef wraparound
-	prog_ptr = PROGRAM_MEM_BYTES - 1;
-	#else
-	printf("Stack underflow at %d\n", i);
-	return 1;
-	#endif
+        #ifndef nowraparound
+		prog_ptr = PROGRAM_MEM_BYTES - 1;
+        #else
+		printf("Stack underflow at %d\n", i);
+		return 1;
+        #endif
       }
       break;
     case TOK_INC:
-      if (*curr_ptr < CHAR_MAX) {
-	(*curr_ptr) ++;
+      if (*curr_ptr < max_cell) {
+		(*curr_ptr) ++;
       }
       else {
-	#ifdef wraparound
-	(*curr_ptr) = 0;
-	#else
-	printf("Integer overflow at %d\n", i);
-	return 1;
-	#endif
+        #ifndef nowraparound
+		(*curr_ptr) = 0;
+        #else
+		printf("Integer overflow at %d\n", i);
+		return 1;
+        #endif
       }
       break;
     case TOK_DEC:
       if (*curr_ptr > 0)
-	(*curr_ptr) --;
+		(*curr_ptr) --;
       else {
-	#ifdef wraparound
-	(*curr_ptr) = CHAR_MAX - 1;
-	#else
-	printf("Integer underflow at %d\n", i);
-	return 1;
-	#endif
+        #ifndef nowraparound
+		(*curr_ptr) = max_cell;
+        #else
+		printf("Integer underflow at %d\n", i);
+		return 1;
+        #endif
       }
       /* (*curr_ptr) --; */
       break;
     case TOK_PRINT:
       #ifdef verbose
       if (output_pos >= output_size) {
-	output_size *= 2;
-	char* new_output = realloc(output, output_size * sizeof(char));
-	printf("Resizing output buffer to %d chars\n", output_size);
-	if (!new_output) {
-	  printf("Unable to realloc output array!\n");
-	  free(output);
-	  return 1;
-	}
-	output = new_output;
+		output_size *= 2;
+		CELL_TYPE* new_output = realloc(output, output_size * sizeof(CELL_TYPE));
+		printf("Resizing output buffer to %d chars\n", output_size);
+		if (!new_output) {
+		  printf("Unable to realloc output array!\n");
+		  free(output);
+		  return 1;
+		}
+		output = new_output;
       }
       output[output_pos] = *curr_ptr;
       output_pos++;
@@ -196,43 +216,45 @@ int main (int argc, char *argv[]) {
       break;
     case TOK_JMP_F:
       if (*curr_ptr == 0) {
-	int num_brackets = 1;
-	while (num_brackets != 0) {
-	  i++;
-	  if (instructions[i] == TOK_JMP_F)
-	    num_brackets ++;
-	  if (instructions[i] == TOK_JMP_B)
-	    num_brackets --;
-	}
+		int num_brackets = 1;
+		while (num_brackets != 0) {
+		  i++;
+		  if (instructions[i] == TOK_JMP_F)
+			num_brackets ++;
+		  if (instructions[i] == TOK_JMP_B)
+			num_brackets --;
+		}
       }
       break;
     case TOK_JMP_B:
       if (*curr_ptr != 0) {
-  	int num_brackets = 1;
-	while (num_brackets != 0) {
-	  i--;
-	  if (instructions[i] == TOK_JMP_B)
-	    num_brackets ++;
-	  if (instructions[i] == TOK_JMP_F)
-	    num_brackets --;
-	}
+		int num_brackets = 1;
+		while (num_brackets != 0) {
+		  i--;
+		  if (instructions[i] == TOK_JMP_B)
+			num_brackets ++;
+		  if (instructions[i] == TOK_JMP_F)
+			num_brackets --;
+		}
       }
       break;
     case TOK_WS:
       break;
     case TOK_NULL:
+      #ifdef verbose
       printf("Encounted non-bf char (%c, %d) may be part of a comment\n", *inst, *inst);
+      #endif
       break;
     default:
       printf("FATAL: Encounted unknown instruction (possible invalid memory): %d, %c\n", *inst, *inst);
       #ifdef verbose
       printf("\nPROGRAM OUTPUT:\n");
       for (int i = 0; i < output_pos; i++) {
-	printf("%c", output[i]);
+		printf("%c", output[i]);
       }
       free(output);
       #endif
-       return 1;
+      return 1;
     }
   }
 
@@ -241,9 +263,9 @@ int main (int argc, char *argv[]) {
   for (int i = 0; i < PROGRAM_MEM_BYTES; i++)
     if (prog_mem[i] != 0)
       if (prog_mem[i] != '\n')
-	printf("{%d} = %c (%d)\n", i, prog_mem[i], prog_mem[i]);
+		printf("{%d} = %c (%d)\n", i, prog_mem[i], prog_mem[i]);
       else // dont print new lines
-	printf("{%d} =   (%d)\n", i, prog_mem[i]);
+		printf("{%d} =   (%d)\n", i, prog_mem[i]);
 
   printf("pointer = %d\n", prog_ptr);
 
