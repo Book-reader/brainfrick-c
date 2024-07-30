@@ -42,7 +42,7 @@ typedef struct {
   IDX += AMOUNT;
 #else
 #define INC_DYN_ARRAY(ARR, SIZE, IDX, TYPE, AMOUNT)						\
-  while (IDX + AMOUNT >= SIZE - AMOUNT) {								\
+  while (IDX + AMOUNT >= SIZE) {								\
 	unsigned int new_ ## ARR ## _size = SIZE * 2;						\
     TYPE* new_ ## ARR = realloc(ARR, new_ ## ARR ## _size * sizeof(TYPE)); \
 	if (!new_ ## ARR) {													\
@@ -272,7 +272,7 @@ int main (int argc, char *argv[]) {
     case TOK_PRINT:
       #ifdef verbose
 	  output[output_pos] = *curr_ptr;
-	  INC_DYN_ARRAY(output, output_size, output_pos, CELL_TYPE, 1)
+	  INC_DYN_ARRAY(output, output_size, output_pos, CELL_TYPE, 1);
       #else
       printf("%c", *curr_ptr);
       #endif
