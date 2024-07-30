@@ -48,7 +48,7 @@ All the included files belong to their respective authors.
  - `99bottles.bf` - 99 Bottles of beer on the wall. 99 Bottles of beer.
  - `196.b` - The 196 algorithm. checks if the entered number is a lychrel number
  - `bee-movie.b` - prints the bee movie script
- - `bf-interpreter(1,2,3).b` - 3 different brainf**k interpreters writter in bf. 2 is fastest, 1 is slowest. after entering the program, add a ! (required) then write any input for the program. the input can also be piped in
+ - `bf-interpreter(1,2,3).b` - 3 different brainf**k interpreters writter in bf. They have varying levels of speed for different tasks. after entering the program, add a ! (required) then write any input for the program. the input can also be piped in
  - `bf-standard-compliance-test.bf` - tests whether the interpreter is fully bf-compliant
  - `bf-standard-compliance-test-for-recursive.bf` - same as above, but with any ! in the comments removed as `bf-interpreter(1,2,3).b` cannot handle them (they are not fully compliant to the spec as they use ! to seperate the program and the inputs)
  - `bsort.b` - bubble sorts inputs (by ascii value)
