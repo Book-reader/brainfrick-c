@@ -255,7 +255,7 @@ int main (int argc, char *argv[]) {
 	  #ifdef verbose
 	  printf("Increasing %d by %d\n", *curr_ptr, inst->repeats);
 	  #endif
-	  (*curr_ptr) = ((*curr_ptr) + inst->repeats) % max_cell;
+	  (*curr_ptr) = ((*curr_ptr) + inst->repeats) % (max_cell + 1);
       #ifdef verbose
 	  printf("Result: %d\n", *curr_ptr);
 	  #endif
