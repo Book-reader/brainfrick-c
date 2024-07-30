@@ -362,16 +362,22 @@ CELL_TYPE* get_prog_mem(long idx) {
 
 void change_prog_ptr(long* idx, Token* inst, short dir) {
   #ifdef growablemem
+  #ifdef verbose
   printf("Num: %d\n", inst->repeats);
   printf("Idx: %d, REP: %d\n", *idx, inst->repeats * dir);
+  #endif
   if (*idx + (inst->repeats * dir) >= 0) {
 	INC_DYN_ARRAY(prog_mem, prog_mem_size, (*idx), CELL_TYPE, (inst->repeats * dir));
   }
   else {
 	long idx_ = 0;
+	#ifdef verbose
 	printf("Idx_: %d, %d\n", idx_, inst->repeats);
+	#endif
 	INC_DYN_ARRAY(prog_mem_neg, prog_mem_neg_size, idx_, CELL_TYPE, ((*idx + (inst->repeats * dir)) * dir));
+	#ifdef verbose
 	printf("Idx2: %d, REP: %d, %d\n", *idx, idx_, idx_*dir);
+	#endif
 	(*idx) = idx_ * dir;
   }
   #else
