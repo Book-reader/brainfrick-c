@@ -6,7 +6,7 @@
 
 #define PROGRAM_MEM_BYTES 30000
 
-enum TOKEN {
+enum TOKEN_TYPE {
   TOK_NEXT, // >
   TOK_PREV, // <
   TOK_INC, // +
@@ -17,11 +17,17 @@ enum TOKEN {
   TOK_JMP_B, // ]
   TOK_NULL, // a-z, A-Z, 1-9...
   TOK_WS, // ' '
+  TOK_NONE,
 };
 
+typedef struct {
+  enum TOKEN_TYPE type;
+  int repeats;
+} Token;
+
 #ifdef verbose
-#define INC_DYN_ARRAY(ARR, SIZE, IDX, TYPE)								\
-  if (IDX >= SIZE - 1) {												\
+#define INC_DYN_ARRAY(ARR, SIZE, IDX, TYPE, AMOUNT)						\
+  while (IDX + AMOUNT >= SIZE) {										\
 	unsigned int new_ ## ARR ## _size = SIZE * 2;						\
     TYPE* new_ ## ARR = realloc(ARR, new_ ## ARR ## _size * sizeof(TYPE)); \
 	printf("Resizing %s memory to %d bytes\n", #ARR, new_ ## ARR ## _size); \
@@ -33,10 +39,10 @@ enum TOKEN {
     SIZE = new_ ## ARR ## _size;										\
     ARR = new_ ## ARR;													\
   }																		\
-  IDX ++;
+  IDX += AMOUNT;
 #else
-#define INC_DYN_ARRAY(ARR, SIZE, IDX, TYPE)								\
-  if (IDX >= SIZE - 1) {												\
+#define INC_DYN_ARRAY(ARR, SIZE, IDX, TYPE, AMOUNT)						\
+  while (IDX + AMOUNT >= SIZE - AMOUNT) {								\
 	unsigned int new_ ## ARR ## _size = SIZE * 2;						\
     TYPE* new_ ## ARR = realloc(ARR, new_ ## ARR ## _size * sizeof(TYPE)); \
 	if (!new_ ## ARR) {													\
@@ -47,9 +53,8 @@ enum TOKEN {
     SIZE = new_ ## ARR ## _size;										\
     ARR = new_ ## ARR;													\
   }																		\
-  IDX ++;
+  IDX += AMOUNT;
 #endif
-
 
 #ifdef largecells
 #define CELL_TYPE uint16_t
@@ -60,16 +65,24 @@ const CELL_TYPE max_cell = UINT8_MAX;
 #endif
 
 void prog_exit(int status);
+CELL_TYPE* get_prog_mem(long idx);
+void change_prog_ptr(long* idx, Token* inst, short dir);
 
 char* prog;
-enum TOKEN* instructions;
+enum TOKEN_TYPE* instructions;
 #ifdef growablemem
 CELL_TYPE* prog_mem;
+CELL_TYPE* prog_mem_neg;
+unsigned int prog_mem_size;
+unsigned int prog_mem_neg_size;
+#else
+CELL_TYPE prog_mem[PROGRAM_MEM_BYTES];
 #endif
 #ifdef verbose
 CELL_TYPE* output;
 #endif
 CELL_TYPE* input_buf;
+Token* inst_comp;
 
 int main (int argc, char *argv[]) {
   #ifdef largecells
@@ -85,7 +98,7 @@ int main (int argc, char *argv[]) {
     printf("Unable to open file %s", argv[1]);
     prog_exit(1);
   }
-  
+
   unsigned int prog_malloc = 1;
   unsigned int prog_size = 0;
   prog = malloc(prog_malloc * sizeof(char));
@@ -94,25 +107,15 @@ int main (int argc, char *argv[]) {
     prog_char = fgetc(bf);
 
     if (prog_char == -1) break;
-    
+
     prog[prog_size] = prog_char;
 
-	INC_DYN_ARRAY(prog, prog_malloc, prog_size, char);
+	INC_DYN_ARRAY(prog, prog_malloc, prog_size, char, 1);
   }
 
   fclose(bf);
 
-  #ifdef growablemem
-  unsigned int prog_mem_size = 1;
-  prog_mem = calloc(prog_mem_size, sizeof(CELL_TYPE));
-  #else
-  CELL_TYPE prog_mem[PROGRAM_MEM_BYTES] = {0};
-  #endif
-
-  unsigned int prog_ptr = 0;
-
-
-  instructions = malloc(prog_size * sizeof(enum TOKEN));
+  instructions = malloc(prog_size * sizeof(enum TOKEN_TYPE));
 
   int matching_brackets = 0;
 
@@ -156,6 +159,64 @@ int main (int argc, char *argv[]) {
       break;
     }
   }
+  free(prog);
+  if (matching_brackets != 0) {
+    printf("Incorrect number of brackets\n");
+    prog_exit(1);
+  }
+
+
+  int inst_comp_size = 1;
+  int inst_comp_idx = 0;
+  inst_comp = malloc(inst_comp_size * sizeof(Token));
+
+  for (int i = 0; i < prog_size; i++) {
+	Token tmp_token = {instructions[i], 0};
+	switch (tmp_token.type) {
+	case TOK_NEXT:
+	case TOK_PREV:
+	case TOK_INC:
+	case TOK_DEC:
+	  while (1) {
+		if (instructions[i] != tmp_token.type) {
+		  i --;
+		  break;
+		}
+		i++;
+		tmp_token.repeats ++;
+	  }
+
+	  inst_comp[inst_comp_idx] = tmp_token;
+	  #ifdef verbose
+	  printf("type: %d, repeats: %d, idx: %d\n", tmp_token.type, tmp_token.repeats, i);
+	  #endif
+	  INC_DYN_ARRAY(inst_comp, inst_comp_size, inst_comp_idx, Token, 1);
+
+	  break;
+	case TOK_PRINT:
+	case TOK_INPUT:
+	case TOK_JMP_F:
+	case TOK_JMP_B:
+	  inst_comp[inst_comp_idx] = tmp_token;
+	  #ifdef verbose
+	  printf("type: %d, repeats: %d, idx: %d\n", tmp_token.type, tmp_token.repeats, i);
+	  #endif
+	  INC_DYN_ARRAY(inst_comp, inst_comp_size, inst_comp_idx, Token, 1);
+	  break;
+	default:
+	  #ifdef verbose
+	  printf("Ignored token of type: %d\n", tmp_token.type);
+	  #endif
+	  break;
+	}
+  }
+  #ifdef verbose
+  printf("Before: %d, %d\n", inst_comp_size, inst_comp_idx);
+  #endif
+  inst_comp_size = inst_comp_idx;
+  #ifdef verbose
+  printf("After: %d, %d\n", inst_comp_size, inst_comp_idx);
+  #endif
 
   #ifdef verbose
   unsigned int output_pos = 0;
@@ -163,75 +224,55 @@ int main (int argc, char *argv[]) {
   output = malloc(output_size * sizeof(CELL_TYPE));
   #endif
 
-  if (matching_brackets != 0) {
-    printf("Incorrect number of brackets\n");
-    prog_exit(1);
-  }
+  #ifdef growablemem
+  prog_mem_size = 1;
+  prog_mem = calloc(prog_mem_size, sizeof(CELL_TYPE));
+  prog_mem_neg_size = 1;
+  prog_mem_neg = calloc(prog_mem_neg_size, sizeof(CELL_TYPE));
+  #endif
 
-  for (int i = 0; i < prog_size; i++) {
-    const enum TOKEN* inst = &instructions[i];
-    CELL_TYPE* curr_ptr = &prog_mem[prog_ptr];
+  long prog_ptr = 0;
+
+  for (int i = 0; i < inst_comp_size; i++) {
+    Token* inst = &inst_comp[i];
+    CELL_TYPE* curr_ptr = get_prog_mem(prog_ptr);
     #ifdef verbose
+	printf("Prog_ptr: %d\n", prog_ptr);
     printf("%d %d: %d, %c\n", i, prog_ptr, *curr_ptr, *curr_ptr);
     #endif
-    switch (*inst) {
+    switch (inst->type) {
     case TOK_NEXT:
 	  #ifdef growablemem
-	  INC_DYN_ARRAY(prog_mem, prog_mem_size, prog_ptr, CELL_TYPE);
+	  change_prog_ptr(&prog_ptr, inst, 1);
 	  #else
-      if  (prog_ptr < PROGRAM_MEM_BYTES - 1)
-		prog_ptr ++;
-      else {
-        #ifndef nowraparound
-		prog_ptr = 0;
-        #else
-		printf("Stack overflow at %d\n", i);
-	    prog_exit(1);
-        #endif
-      }
+	  prog_ptr = (prog_ptr + inst->repeats) % PROGRAM_MEM_BYTES;
 	  #endif
       break;
     case TOK_PREV:
-      if (prog_ptr > 0)
-		prog_ptr --;
-      else {
-        #ifndef nowraparound
-		prog_ptr = PROGRAM_MEM_BYTES - 1;
-        #else
-		printf("Stack underflow at %d\n", i);
-		prog_exit(1);
-        #endif
-      }
+	  change_prog_ptr(&prog_ptr, inst, -1);
       break;
     case TOK_INC:
-      if (*curr_ptr < max_cell) {
-		(*curr_ptr) ++;
-      }
-      else {
-        #ifndef nowraparound
-		(*curr_ptr) = 0;
-        #else
-		printf("Integer overflow at %d\n", i);
-	    prog_exit(1);
-        #endif
-      }
+	  #ifdef verbose
+	  printf("Increasing %d by %d\n", *curr_ptr, inst->repeats);
+	  #endif
+	  (*curr_ptr) = ((*curr_ptr) + inst->repeats) % max_cell;
+      #ifdef verbose
+	  printf("Result: %d\n", *curr_ptr);
+	  #endif
       break;
     case TOK_DEC:
-      if (*curr_ptr > 0)
-		(*curr_ptr) --;
-      else {
-        #ifndef nowraparound
-		(*curr_ptr) = max_cell;
-        #else
-		printf("Integer underflow at %d\n", i);
-		prog_exit(1);
-        #endif
-      }
+	  #ifdef verbose
+	  printf("Decreasing %d by %d\n", *curr_ptr, inst->repeats);
+	  #endif
+	  (*curr_ptr) = ((*curr_ptr) - inst->repeats) % max_cell;
+	  #ifdef verbose
+	  printf("Result: %d\n", *curr_ptr);
+	  #endif
       break;
     case TOK_PRINT:
       #ifdef verbose
 	  output[output_pos] = *curr_ptr;
-	  INC_DYN_ARRAY(output, output_size, output_pos, CELL_TYPE)
+	  INC_DYN_ARRAY(output, output_size, output_pos, CELL_TYPE, 1)
       #else
       printf("%c", *curr_ptr);
       #endif
@@ -244,11 +285,14 @@ int main (int argc, char *argv[]) {
 		int num_brackets = 1;
 		while (num_brackets != 0) {
 		  i++;
-		  if (instructions[i] == TOK_JMP_F)
+		  if (inst_comp[i].type == TOK_JMP_F)
 			num_brackets ++;
-		  if (instructions[i] == TOK_JMP_B)
+		  if (inst_comp[i].type == TOK_JMP_B)
 			num_brackets --;
 		}
+		#ifdef verbose
+		printf("Idx: %d\n", i);
+		#endif
       }
       break;
     case TOK_JMP_B:
@@ -256,22 +300,15 @@ int main (int argc, char *argv[]) {
 		int num_brackets = 1;
 		while (num_brackets != 0) {
 		  i--;
-		  if (instructions[i] == TOK_JMP_B)
+		  if (inst_comp[i].type == TOK_JMP_B)
 			num_brackets ++;
-		  if (instructions[i] == TOK_JMP_F)
+		  if (inst_comp[i].type == TOK_JMP_F)
 			num_brackets --;
 		}
       }
       break;
-    case TOK_WS:
-      break;
-    case TOK_NULL:
-      #ifdef verbose
-      printf("Encounted non-bf char (%c, %d) may be part of a comment\n", *inst, *inst);
-      #endif
-      break;
     default:
-      printf("FATAL: Encounted unknown instruction (possible invalid memory): %d, %c\n", *inst, *inst);
+      printf("FATAL: Encounted unknown instruction (possible invalid memory): %d, %c\n", inst->type, inst->type);
       #ifdef verbose
       printf("\nPROGRAM OUTPUT:\n");
       for (int i = 0; i < output_pos; i++) {
@@ -284,13 +321,21 @@ int main (int argc, char *argv[]) {
 
   #ifdef verbose
   printf("\nMEMORY STATE:\n");
-  for (int i = 0; i < PROGRAM_MEM_BYTES; i++)
-    if (prog_mem[i] != 0)
-      if (prog_mem[i] != '\n')
-		printf("{%d} = %c (%d)\n", i, prog_mem[i], prog_mem[i]);
+  #ifdef growablemem
+  // Hacky workaround, why dont the variables by themselves work?
+  int l_min = -prog_mem_neg_size;
+  int l_max = prog_mem_size;
+  for (int i = l_min; i < l_max; i++) {
+  #else
+  for (int i = 0; i < PROGRAM_MEM_BYTES; i++) {
+  #endif
+    CELL_TYPE j = *get_prog_mem(i);
+	if (j != 0)
+      if (j != '\n')
+		printf("{%d} = %c (%d)\n", i, j, j);
       else // dont print new lines
-		printf("{%d} =   (%d)\n", i, prog_mem[i]);
-
+		printf("{%d} =   (%d)\n", i, j);
+  }
   printf("pointer = %d\n", prog_ptr);
 
   printf("\nPROGRAM OUTPUT:\n");
@@ -302,15 +347,48 @@ int main (int argc, char *argv[]) {
   prog_exit(0);
 }
 
+CELL_TYPE* get_prog_mem(long idx) {
+  #ifdef growablemem
+  if (idx >= 0) {
+	return &prog_mem[idx];
+  }
+  else {
+	return &prog_mem_neg[-idx];
+  }
+  #else
+  return &prog_mem[idx];
+  #endif
+}
+
+void change_prog_ptr(long* idx, Token* inst, short dir) {
+  #ifdef growablemem
+  printf("Num: %d\n", inst->repeats);
+  printf("Idx: %d, REP: %d\n", *idx, inst->repeats * dir);
+  if (*idx + (inst->repeats * dir) >= 0) {
+	INC_DYN_ARRAY(prog_mem, prog_mem_size, (*idx), CELL_TYPE, (inst->repeats * dir));
+  }
+  else {
+	long idx_ = 0;
+	printf("Idx_: %d, %d\n", idx_, inst->repeats);
+	INC_DYN_ARRAY(prog_mem_neg, prog_mem_neg_size, idx_, CELL_TYPE, ((*idx + (inst->repeats * dir)) * dir));
+	printf("Idx2: %d, REP: %d, %d\n", *idx, idx_, idx_*dir);
+	(*idx) = idx_ * dir;
+  }
+  #else
+  (*idx) += inst->repeats * dir;
+  #endif
+}
+
 void prog_exit(int status) {
-  free(prog);
   free(instructions);
   free(input_buf);
   #ifdef growablemem
   free(prog_mem);
+  free(prog_mem_neg);
   #endif
   #ifdef verbose
   free(output);
   #endif
+  free(inst_comp);
   exit(status);
 }

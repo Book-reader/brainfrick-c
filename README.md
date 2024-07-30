@@ -7,7 +7,6 @@ gcc main.c [compile options] -o brainfrick
 
 ## Compile options
  - `-Dlargecells`, Makes each cell 16 bit instead of the default byte. Can break some programs
- - `-Dnowraparound`, Disallows over/underflowing cells and the tape
  - `-Dverbose`, Prints basically everything. Prints all output at once at the end
  - `-Dgrowablemem`, Gives the program an unlimited amount of cells instead of the default 30,000
 
