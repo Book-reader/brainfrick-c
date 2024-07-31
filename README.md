@@ -1,4 +1,5 @@
 # A fast & powerful brainf**k interpreter written in c
+### Do not expect this to have great quality, this is my first c program and was written to get a general idea of what programming in c is like
 
 ## Building
 ```sh
@@ -7,7 +8,7 @@ gcc main.c [compile options] -o brainfrick
 
 ## Compile options
  - `-Dlargecells`, Makes each cell 16 bit instead of the default byte. Can break some programs
- - `-Dverbose`, Prints basically everything, more verbose logging is added the more problems I have. Prints all program output at once at the end.
+ - `-Dverbose`, Prints basically everything, more verbose logging is added the more problems I have (I am losing my mind). Prints all program output at once at the end.
  - `-Dgrowablemem`, Gives the program an unlimited amount of cells in all directions instead of the default 30,000
 
 
