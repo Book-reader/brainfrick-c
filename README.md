@@ -44,7 +44,8 @@ echo "My Input" | ./brainfrick [file]
 ## Sample brainf**k files
 
 All the included files belong to their respective authors.
- **Please note that some programs that can take unlimited input (the interpreters, bsort, etc) require Ctrl-D to be pressed after typing input and pressing enter**
+
+Please note that some programs that can take unlimited input (the interpreters, bsort, etc) require Ctrl-D to be pressed after typing input and pressing enter, while others dont.
  - `99bottles.bf` - 99 Bottles of beer on the wall. 99 Bottles of beer.
  - `196.b` - The 196 algorithm. checks if the entered number is a lychrel number
  - `bee-movie.b` - prints the bee movie script
