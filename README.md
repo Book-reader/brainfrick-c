@@ -66,4 +66,4 @@ Please note that some programs that can take unlimited input (the interpreters, 
  - `PRIME.BF` - computes prime numbers
  - `random.b`- pseudo random using Rule 30 automaton
  - `sierpinski.b` - Shows an ASCII representation of the Sierpinski triangle
- - `text-to-bf.b` - turns text into brainf**k code (poorly).
+ - `text-to-bf.b` - turns text into brainf**k code (inefficiently).
