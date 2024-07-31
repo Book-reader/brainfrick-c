@@ -7,8 +7,8 @@ gcc main.c [compile options] -o brainfrick
 
 ## Compile options
  - `-Dlargecells`, Makes each cell 16 bit instead of the default byte. Can break some programs
- - `-Dverbose`, Prints basically everything. Prints all output at once at the end
- - `-Dgrowablemem`, Gives the program an unlimited amount of cells instead of the default 30,000
+ - `-Dverbose`, Prints basically everything, more verbose logging is added the more problems I have. Prints all program output at once at the end.
+ - `-Dgrowablemem`, Gives the program an unlimited amount of cells in all directions instead of the default 30,000
 
 
 ## Running
@@ -62,7 +62,7 @@ Please note that some programs that can take unlimited input (the interpreters, 
  - `LostKingdom.b` - an entire game? how. an "Enchanced Brainfuck Edition of the original BBC BASIC game"
  - `more_memory.b` - eats all your memory if you used `-Dgrowablemem`
  - `numwarp.b` - makes numbers look cool
- - `PI16.BF` - calculate pi (number of digits changed inside file)
+ - `PI16.BF` - calculate pi (number of digits changed inside file), requires -Dlargecells
  - `PRIME.BF` - computes prime numbers
  - `random.b`- pseudo random using Rule 30 automaton
  - `sierpinski.b` - Shows an ASCII representation of the Sierpinski triangle
