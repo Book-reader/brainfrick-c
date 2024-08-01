@@ -3,7 +3,7 @@
 
 ## Building
 ```sh
-gcc brainfrick.c [compile options] -o brainfrick
+gcc main.c [compile options] -o brainfrick
 ```
 
 ## Compile options
