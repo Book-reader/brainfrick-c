@@ -4,7 +4,8 @@ section .data
 	; prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
 	; 1 MiB Should be enough to load most files
 	prog times 1000000 db 0
-	prog_file db "files/hanoi.b", 0
+	; prog_file db "files/hanoi.b", 0
+	prog_file db "files/hello_world.b", 0
 	; prog_file db "files/bf-standard-compliance-test.bf", 0
 	; but not for LostKingdom.b, it needs at least 3 Mib
 	; prog times 3000000 db 0
@@ -13,6 +14,9 @@ section .data
 	prog_file_handle dd 0
 	prog_file_idx dd 0
 	prog_idx dd 0
+
+	; The optimized program
+	prog_opt times 1000000 db 0
 	; The 30kib of program memory
 	prog_mem times 30000 db 0
 	; The current memory index
@@ -21,6 +25,15 @@ section .data
 	curr_cell dd 0
 	tmp times 100 dd 0
 	scanf_str db "%c", 0
+
+	tok_inc equ 0
+	tok_dec equ 1
+	tok_next equ 2
+	tok_prev equ 3
+	tok_print equ 4
+	tok_read equ 5
+	tok_loop_f equ 6
+	tok_loop_b equ 7
 
 section .text
 global main
@@ -87,36 +100,94 @@ read_file_loop:
 read_file_end:
 	push dword [prog_file_handle]
 	call fclose
-	call main_loop
+	mov ebx, 0
+	mov ecx, 0
+	call optimize
 	ret
 
+optimize:
+	mov eax, prog
+	add eax, ebx
+
+	cmp byte [eax], 0x00
+	je main_loop
+	; The main switch case
+	cmp byte [eax], '+'
+	je .tok_add
+	cmp byte [eax], '-'
+	je .tok_dec
+	cmp byte [eax], '>'
+	je .tok_next
+	cmp byte [eax], '<'
+	je .tok_prev
+	cmp byte [eax], '.'
+	je .tok_print
+	cmp byte [eax], ','
+	je .tok_read
+	cmp byte [eax], '['
+	je .tok_loop_f
+	cmp byte [eax], ']'
+	je .tok_loop_b
+	; Else, this ignores the char as it is probably a comment
+	dec ecx
+	jmp .optimize_fin
+
+.tok_add:
+	mov byte [prog_opt + ecx], tok_inc
+	jmp .optimize_fin
+.tok_dec:
+	mov byte [prog_opt + ecx], tok_dec
+	jmp .optimize_fin
+.tok_next:
+	mov byte [prog_opt + ecx], tok_next
+	jmp .optimize_fin
+.tok_prev:
+	mov byte [prog_opt + ecx], tok_prev
+	jmp .optimize_fin
+.tok_print:
+	mov byte [prog_opt + ecx], tok_print
+	jmp .optimize_fin
+.tok_read:
+	mov byte [prog_opt + ecx], tok_read
+	jmp .optimize_fin
+.tok_loop_f:
+	mov byte [prog_opt + ecx], tok_loop_f
+	jmp .optimize_fin
+.tok_loop_b:
+	mov byte [prog_opt + ecx], tok_loop_b
+	jmp .optimize_fin
+
+.optimize_fin:
+	inc ecx
+	inc ebx
+	jmp optimize
 
 main_loop:
 	; Load the current program instruction into eax
-	mov eax, prog
+	mov eax, prog_opt
 	add eax, [prog_idx]
 
 	; Load the current cell at prog_ptr to ebx
 	call load_cell
 
 	; The main switch case
-	cmp byte [eax], '+'
+	cmp byte [eax], tok_inc ; '+'
 	je .inst_add
-	cmp byte [eax], '-'
+	cmp byte [eax], tok_dec; '-'
 	je .inst_dec
-	cmp byte [eax], '>'
+	cmp byte [eax], tok_next; '>'
 	je .inst_next
-	cmp byte [eax], '<'
+	cmp byte [eax], tok_prev; '<'
 	je .inst_prev
-	cmp byte [eax], '.'
+	cmp byte [eax], tok_print; '.'
 	je .inst_print
-	cmp byte [eax], ','
+	cmp byte [eax], tok_read; ','
 	je .inst_read
-	cmp byte [eax], '['
+	cmp byte [eax], tok_loop_f; '['
 	je .inst_loop_f
-	cmp byte [eax], ']'
+	cmp byte [eax], tok_loop_b; ']'
 	je .inst_loop_b
-	; Else, this ignores the char as it is probably a comment
+	; Else, TODO error as this is out of bounds memory
 	jmp .fin
 .inst_add:
 	; TODO check overflow & underflow and see if I need to manually handle it
@@ -167,7 +238,7 @@ main_loop:
 	cmp ebx, 0
 	je .fin
 	inc dword [prog_idx]
-	mov eax, prog
+	mov eax, prog_opt
 	add eax, [prog_idx]
 	cmp byte [eax], ']'
 	je .goto_next_loop_f_close
@@ -191,7 +262,7 @@ main_loop:
 	cmp dword ebx, 0
 	je .fin
 	dec dword [prog_idx]
-	mov eax, prog
+	mov eax, prog_opt
 	add eax, [prog_idx]
 	cmp byte [eax], ']'
 	je .goto_prev_loop_b_close
@@ -207,7 +278,7 @@ main_loop:
 
 .fin:
 	inc dword [prog_idx]
-	mov eax, prog
+	mov eax, prog_opt
 	add eax, [prog_idx]
 	; Check if the current instruction is 0, the end of the program
 	cmp byte [eax], 0
