@@ -1,9 +1,16 @@
 section .data
 	; Null terminated string to show end of program
 	; This is 'Hello, World!'
-	prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
-	; prog db "+++++++++++++++++++++++++++++++++.+.>+++++++++-+++++++++++++++++++++++++++.", 0
-	; prog db "+[>+<-]>.", 0
+	; prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
+	; 1 MiB Should be enough to load most files
+	prog times 1000000 db 0
+	prog_file db "files/bf-standard-compliance-test.bf", 0
+	; but not for LostKingdom.b, it needs at least 3 Mib
+	; prog times 3000000 db 0
+	; prog_file db "files/LostKingdom.b", 0
+	prog_file_mode db "r", 0
+	prog_file_handle dd 0
+	prog_file_idx dd 0
 	prog_idx dd 0
 	; The 30kib of program memory
 	prog_mem times 30000 db 0
@@ -16,12 +23,71 @@ section .data
 section .text
 global main
 extern putchar
+extern fopen
+extern fgetc
+extern fclose
 
 main:
-	call loop
+	call load_file
+	; call main_loop
 	ret
 
-loop:
+load_file:
+	push prog_file_mode
+	push prog_file
+	; eax should now be the file handle
+	call fopen
+	; First is the string
+	pop ebx
+	; Then is the file mode
+	pop ebx
+
+	mov [prog_file_handle], eax
+
+	cmp dword [prog_file_handle], -1
+	je .file_no_open
+	; TODO: check if fopen returns an error
+	; The index of the prog_file
+	mov dword [prog_file_idx], 0
+	jmp read_file_loop
+;; :(
+.file_no_open:
+	mov edx, tmp
+	add edx, 1
+	mov byte [edx], ':'
+	call printc
+	mov edx, tmp
+	add edx, 2
+	mov byte [edx], '('
+	call printc
+	mov edx, tmp
+	add edx, 3
+	mov byte [edx], 0x0a
+	call printc
+	jmp read_file_end
+read_file_loop:
+	push dword [prog_file_handle]
+	call fgetc
+	pop ebx
+	cmp eax, -1
+	je read_file_end
+	; mov [prog_file_curr_char], eax
+	; mov eax, [prog_file_curr_char]
+	mov edx, prog
+	add edx, dword [prog_file_idx]
+	mov [edx], byte al
+	inc dword [prog_file_idx]
+	jmp read_file_loop
+
+
+read_file_end:
+	push dword [prog_file_handle]
+	call fclose
+	call main_loop
+	ret
+
+
+main_loop:
 	; Load the current program instruction into eax
 	mov eax, prog
 	add eax, [prog_idx]
@@ -47,9 +113,6 @@ loop:
 	cmp byte [eax], ']'
 	je .inst_loop_b
 	; Else, this ignores the char as it is probably a comment
-	; TODO: remove printc
-	; mov edx, eax
-	; call printc
 	jmp .fin
 .inst_add:
 	; TODO check overflow & underflow and see if I need to manually handle it
@@ -133,9 +196,15 @@ loop:
 	; Check if the current instruction is 0, the end of the program
 	cmp byte [eax], 0
 	; If it isnt, repeat the loop
-	jne loop
-	; If it is, break
-	ret
+	jne main_loop
+	; If it is, print a newline to flush the print buffer, then exit with code 0
+	mov byte [tmp + 13], 0x0a
+	mov edx, tmp + 13
+	call printc
+
+	mov eax,1
+    mov ebx, 0
+    int 0x80
 
 	; Prints from eax
 printc:
