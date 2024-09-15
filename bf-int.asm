@@ -4,7 +4,8 @@ section .data
 	; prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
 	; 1 MiB Should be enough to load most files
 	prog times 1000000 db 0
-	prog_file db "files/bf-standard-compliance-test.bf", 0
+	prog_file db "files/hanoi.b", 0
+	; prog_file db "files/bf-standard-compliance-test.bf", 0
 	; but not for LostKingdom.b, it needs at least 3 Mib
 	; prog times 3000000 db 0
 	; prog_file db "files/LostKingdom.b", 0
@@ -19,6 +20,7 @@ section .data
 	; A pointer to the current cell
 	curr_cell dd 0
 	tmp times 100 dd 0
+	scanf_str db "%c", 0
 
 section .text
 global main
@@ -26,6 +28,7 @@ extern putchar
 extern fopen
 extern fgetc
 extern fclose
+extern scanf
 
 main:
 	call load_file
@@ -44,7 +47,8 @@ load_file:
 
 	mov [prog_file_handle], eax
 
-	cmp dword [prog_file_handle], -1
+	; FIXME this does not work
+	cmp eax, -1
 	je .file_no_open
 	; TODO: check if fopen returns an error
 	; The index of the prog_file
@@ -140,7 +144,19 @@ main_loop:
 	call printc
 	jmp .fin
 .inst_read:
-	; TODO implement
+	; This is a mess
+	push tmp + 10
+	push scanf_str
+	call scanf
+	mov ebx, prog_mem
+	add ebx, [prog_ptr]
+	mov eax, tmp
+	add eax, 10
+	mov ecx, [eax]
+	mov [ebx], ecx
+	; Remove the pushed arguments
+	pop ebx
+	pop ebx
 	jmp .fin
 .inst_loop_f:
 	mov ebx, 1
