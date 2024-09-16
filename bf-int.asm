@@ -4,9 +4,9 @@ section .data
 	; prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
 	; 1 MiB Should be enough to load most files
 	prog times 1000000 db 0
-	prog_file db "files/hanoi.b", 0
+	; prog_file db "files/hanoi.b", 0
 	; prog_file db "files/hello_world.b", 0
-	; prog_file db "files/bf-standard-compliance-test.bf", 0
+	prog_file db "files/bf-standard-compliance-test.bf", 0
 	; but not for LostKingdom.b, it needs at least 3 Mib
 	; prog times 3000000 db 0
 	; prog_file db "files/LostKingdom.b", 0
@@ -17,6 +17,7 @@ section .data
 
 	; The optimized program
 	prog_opt times 1000000 db 0
+	; prog_repeat times 1000000 dw 0
 	; The 30kib of program memory
 	prog_mem times 30000 db 0
 	; The current memory index
@@ -42,6 +43,9 @@ extern fopen
 extern fgetc
 extern fclose
 extern scanf
+extern printf
+
+%include 'macros.asm'
 
 main:
 	call load_file
@@ -49,47 +53,31 @@ main:
 	ret
 
 load_file:
+	%push fopen
 	push prog_file_mode
 	push prog_file
 	; eax should now be the file handle
 	call fopen
-	; First is the string
-	pop ebx
-	; Then is the file mode
-	pop ebx
+	call fopen
+	%pop
+
+	cmp eax, 0
+	if e
+	    print "file does not exist", 0x0a, ":(", 0x0a
+	    return 1
+	endif
 
 	mov [prog_file_handle], eax
 
-	; FIXME this does not seem to work
-	cmp eax, -1
-	je .file_no_open
-	; TODO: check if fopen returns an error
 	; The index of the prog_file
 	mov dword [prog_file_idx], 0
 	jmp read_file_loop
-;; :(
-.file_no_open:
-	mov edx, tmp
-	add edx, 1
-	mov byte [edx], ':'
-	call printc
-	mov edx, tmp
-	add edx, 2
-	mov byte [edx], '('
-	call printc
-	mov edx, tmp
-	add edx, 3
-	mov byte [edx], 0x0a
-	call printc
-	jmp read_file_end
 read_file_loop:
 	push dword [prog_file_handle]
 	call fgetc
 	pop ebx
 	cmp eax, -1
 	je read_file_end
-	; mov [prog_file_curr_char], eax
-	; mov eax, [prog_file_curr_char]
 	mov edx, prog
 	add edx, dword [prog_file_idx]
 	mov [edx], byte al
@@ -214,7 +202,7 @@ main_loop:
 	jmp .fin
 .inst_print:
 	mov edx, curr_cell
-	call printc
+	call printc_
 	jmp .fin
 .inst_read:
 	; This is a mess
@@ -287,16 +275,12 @@ main_loop:
 	; If it isnt, repeat the loop
 	jne main_loop
 	; If it is, print a newline to flush the print buffer, then exit with code 0
-	mov byte [tmp + 13], 0x0a
-	mov edx, tmp + 13
-	call printc
+	printc 0x0a
 
-	mov eax,1
-    mov ebx, 0
-    int 0x80
+	return 0
 
 	; Prints from eax
-printc:
+printc_:
 	push word [edx]
 	call putchar
 	; Remove the value of edx that I pushed
