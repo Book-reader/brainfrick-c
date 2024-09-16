@@ -4,8 +4,8 @@ section .data
 	; prog db "++++++++[>+++++++++>+++++++++++++>++++++>++++>+++++++++++<<<<<-]>.>---.+++++++..+++.>----.>.>-.<<<.+++.------.--------.>>+.", 0
 	; 1 MiB Should be enough to load most files
 	prog times 1000000 db 0
-	; prog_file db "files/hanoi.b", 0
-	prog_file db "files/hello_world.b", 0
+	prog_file db "files/hanoi.b", 0
+	; prog_file db "files/hello_world.b", 0
 	; prog_file db "files/bf-standard-compliance-test.bf", 0
 	; but not for LostKingdom.b, it needs at least 3 Mib
 	; prog times 3000000 db 0
@@ -26,14 +26,14 @@ section .data
 	tmp times 100 dd 0
 	scanf_str db "%c", 0
 
-	tok_inc equ 0
-	tok_dec equ 1
-	tok_next equ 2
-	tok_prev equ 3
-	tok_print equ 4
-	tok_read equ 5
-	tok_loop_f equ 6
-	tok_loop_b equ 7
+	tok_inc equ 1
+	tok_dec equ 2
+	tok_next equ 3
+	tok_prev equ 4
+	tok_print equ 5
+	tok_read equ 6
+	tok_loop_f equ 7
+	tok_loop_b equ 8
 
 section .text
 global main
@@ -60,7 +60,7 @@ load_file:
 
 	mov [prog_file_handle], eax
 
-	; FIXME this does not work
+	; FIXME this does not seem to work
 	cmp eax, -1
 	je .file_no_open
 	; TODO: check if fopen returns an error
@@ -109,8 +109,9 @@ optimize:
 	mov eax, prog
 	add eax, ebx
 
-	cmp byte [eax], 0x00
+	cmp byte [eax], 0
 	je main_loop
+
 	; The main switch case
 	cmp byte [eax], '+'
 	je .tok_add
@@ -128,6 +129,7 @@ optimize:
 	je .tok_loop_f
 	cmp byte [eax], ']'
 	je .tok_loop_b
+
 	; Else, this ignores the char as it is probably a comment
 	dec ecx
 	jmp .optimize_fin
@@ -158,8 +160,8 @@ optimize:
 	jmp .optimize_fin
 
 .optimize_fin:
-	inc ecx
 	inc ebx
+	inc ecx
 	jmp optimize
 
 main_loop:
@@ -240,9 +242,9 @@ main_loop:
 	inc dword [prog_idx]
 	mov eax, prog_opt
 	add eax, [prog_idx]
-	cmp byte [eax], ']'
+	cmp byte [eax], tok_loop_b
 	je .goto_next_loop_f_close
-	cmp byte [eax], '['
+	cmp byte [eax], tok_loop_f
 	je .goto_next_loop_f_open
 	jmp .goto_next_loop_f
 .goto_next_loop_f_close:
@@ -264,9 +266,9 @@ main_loop:
 	dec dword [prog_idx]
 	mov eax, prog_opt
 	add eax, [prog_idx]
-	cmp byte [eax], ']'
+	cmp byte [eax], tok_loop_b
 	je .goto_prev_loop_b_close
-	cmp byte [eax], '['
+	cmp byte [eax], tok_loop_f
 	je .goto_prev_loop_b_open
 	jmp .goto_prev_loop_b
 .goto_prev_loop_b_close:
@@ -297,7 +299,7 @@ main_loop:
 printc:
 	push word [edx]
 	call putchar
-	; Remove the return value of putchar from the stack and store it in dx, it is never used
+	; Remove the value of edx that I pushed
 	; If I don't do this it will add data to the stack and I will have to add 4 to esp to show the stack has had data added
 	pop word dx
 	ret
