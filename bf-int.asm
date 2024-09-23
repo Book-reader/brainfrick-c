@@ -5,8 +5,10 @@ section .data
 	; 1 MiB Should be enough to load most files
 	prog times 1000000 db 0
 	; prog_file db "files/hanoi.b", 0
+	prog_file db "files/fib.b", 0
+	; prog_file db "test.b", 0
 	; prog_file db "files/hello_world.b", 0
-	prog_file db "files/bf-standard-compliance-test.bf", 0
+	; prog_file db "files/bf-standard-compliance-test.bf", 0
 	; but not for LostKingdom.b, it needs at least 3 Mib
 	; prog times 3000000 db 0
 	; prog_file db "files/LostKingdom.b", 0
@@ -17,7 +19,7 @@ section .data
 
 	; The optimized program
 	prog_opt times 1000000 db 0
-	; prog_repeat times 1000000 dw 0
+	prog_repeat times 1000000 dw 0
 	; The 30kib of program memory
 	prog_mem times 30000 db 0
 	; The current memory index
@@ -81,7 +83,7 @@ read_file_loop:
 	mov edx, prog
 	add edx, dword [prog_file_idx]
 	mov [edx], byte al
-	inc dword [prog_file_idx]
+	add dword [prog_file_idx], 1
 	jmp read_file_loop
 
 
@@ -119,20 +121,68 @@ optimize:
 	je .tok_loop_b
 
 	; Else, this ignores the char as it is probably a comment
-	dec ecx
+	sub ecx, 1
 	jmp .optimize_fin
 
 .tok_add:
+	push ebx
+
+	mov ebx, [prog_opt + ecx - 1]
+	cmp eax, ebx
+	if ne
 	mov byte [prog_opt + ecx], tok_inc
+	mov word [prog_repeat + ecx], 1
+	else
+	sub ecx, 1
+	add word [prog_repeat + ecx], 1
+	endif
+	
+	pop ebx
 	jmp .optimize_fin
 .tok_dec:
+	push ebx
+
+	mov ebx, [prog_opt + ecx - 1]
+	cmp eax, ebx
+	if ne
 	mov byte [prog_opt + ecx], tok_dec
+	mov word [prog_repeat + ecx], 1
+	else
+	sub ecx, 1
+	add word [prog_repeat + ecx], 1
+	endif
+	
+	pop ebx
 	jmp .optimize_fin
 .tok_next:
+	push ebx
+
+	mov ebx, [prog_opt + ecx - 1]
+	cmp eax, ebx
+	if ne
 	mov byte [prog_opt + ecx], tok_next
+	mov word [prog_repeat + ecx], 1
+	else
+	sub ecx, 1
+	add word [prog_repeat + ecx], 1
+	endif
+	
+	pop ebx
 	jmp .optimize_fin
 .tok_prev:
+	push ebx
+
+	mov ebx, [prog_opt + ecx - 1]
+	cmp eax, ebx
+	if ne
 	mov byte [prog_opt + ecx], tok_prev
+	mov word [prog_repeat + ecx], 1
+	else
+	sub ecx, 1
+	add word [prog_repeat + ecx], 1
+	endif
+	
+	pop ebx
 	jmp .optimize_fin
 .tok_print:
 	mov byte [prog_opt + ecx], tok_print
@@ -148,8 +198,8 @@ optimize:
 	jmp .optimize_fin
 
 .optimize_fin:
-	inc ebx
-	inc ecx
+	add ebx, 1
+	add ecx, 1
 	jmp optimize
 
 main_loop:
@@ -181,25 +231,47 @@ main_loop:
 	jmp .fin
 .inst_add:
 	; TODO check overflow & underflow and see if I need to manually handle it
+	mov ecx, prog_repeat
+	add ecx, [prog_idx]
+	mov edx, [ecx]
 	call inc_curr_cell
 	jmp .fin
 .inst_dec:
-	; dec byte [curr_cell]
+	mov ecx, prog_repeat
+	add ecx, [prog_idx]
+	mov edx, [ecx]
 	call dec_curr_cell
 	jmp .fin
 .inst_next:
 	; TODO handle reaching 30,000
-	cmp dword [prog_ptr], 30000
-	je .inst_next_overflow
-	inc dword [prog_ptr]
+	; cmp dword [prog_ptr], 30000
+	; je .inst_next_overflow
+	mov ecx, prog_repeat
+	add ecx, [prog_idx]
+	mov dl,  byte [ecx]
+	add byte [prog_ptr], dl
 	jmp .fin
-.inst_next_overflow:
-	mov dword [prog_ptr], 0
-	jmp .fin
+; .inst_next_overflow:
+; 	mov dword [prog_ptr], 0
+; 	jmp .fin
 .inst_prev:
 	; TODO handle wraparound to 30k
-	dec dword [prog_ptr]
+	mov ecx, prog_repeat
+	add ecx, [prog_idx]
+	; Clear edx
+	xor edx, edx
+	mov dl,  byte [ecx]
+
+	cmp dword [prog_ptr], edx
+	if l
+	; TODO try 30001 and 29999
+	mov dword [prog_ptr], 30000
+	sub dword [prog_ptr], edx
+	else
+	sub dword [prog_ptr], edx
+	endif
 	jmp .fin
+	
 .inst_print:
 	mov edx, curr_cell
 	call printc_
@@ -227,7 +299,7 @@ main_loop:
 .goto_next_loop_f:
 	cmp ebx, 0
 	je .fin
-	inc dword [prog_idx]
+	add dword [prog_idx], 1
 	mov eax, prog_opt
 	add eax, [prog_idx]
 	cmp byte [eax], tok_loop_b
@@ -236,10 +308,10 @@ main_loop:
 	je .goto_next_loop_f_open
 	jmp .goto_next_loop_f
 .goto_next_loop_f_close:
-	dec ebx
+	sub ebx, 1
 	jmp .goto_next_loop_f
 .goto_next_loop_f_open:
-	inc ebx
+	add ebx, 1
 	jmp .goto_next_loop_f
 
 .inst_loop_b:
@@ -260,14 +332,14 @@ main_loop:
 	je .goto_prev_loop_b_open
 	jmp .goto_prev_loop_b
 .goto_prev_loop_b_close:
-	inc ebx
+	add ebx, 1
 	jmp .goto_prev_loop_b
 .goto_prev_loop_b_open:
-	dec ebx
+	sub ebx, 1
 	jmp .goto_prev_loop_b
 
 .fin:
-	inc dword [prog_idx]
+	add dword [prog_idx], 1
 	mov eax, prog_opt
 	add eax, [prog_idx]
 	; Check if the current instruction is 0, the end of the program
@@ -281,11 +353,15 @@ main_loop:
 
 	; Prints from eax
 printc_:
+	; Save eax
+	push eax
 	push word [edx]
 	call putchar
 	; Remove the value of edx that I pushed
 	; If I don't do this it will add data to the stack and I will have to add 4 to esp to show the stack has had data added
 	pop word dx
+	; restore eax
+	pop eax
 	ret
 
 	; Load the current program cell
@@ -302,15 +378,28 @@ load_cell:
 
 ; TODO replace both of these with a curr_cell variable that, after the switch statement is what prog_mem+[prog_ptr] is set to
 inc_curr_cell:
+	push ebx
 	mov ebx, prog_mem
 	; Add the offset to the current cell
 	add ebx, [prog_ptr]
-	inc byte [ebx]
+	add byte [ebx], dl
+	cmp byte [ebx], 255
+	if g
+	sub byte [ebx], 256
+	endif
+	pop ebx
 	ret
 
 dec_curr_cell:
+	push ebx
 	mov ebx, prog_mem
 	; Add the offset to the current cell
 	add ebx, [prog_ptr]
-	dec byte [ebx]
+	sub byte [ebx], dl
+	cmp byte [ebx], 255
+	if e
+	mov byte [ebx], 256
+	sub byte [ebx], dl
+	endif
+	pop ebx
 	ret

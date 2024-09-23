@@ -249,7 +249,11 @@ int main (int argc, char *argv[]) {
 	  #endif
       break;
     case TOK_PREV:
+	  #ifdef growablemem
 	  change_prog_ptr(&prog_ptr, inst, -1);
+	  #else
+	  prog_ptr = ((prog_ptr - inst->repeats) % PROGRAM_MEM_BYTES + PROGRAM_MEM_BYTES) % PROGRAM_MEM_BYTES;
+	  #endif
       break;
     case TOK_INC:
 	  #ifdef verbose

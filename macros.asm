@@ -39,11 +39,11 @@
 	pop edx
 %endmacro
 
-%macro print 2+
+%macro print 1+
 %push printing
 	; push eax
 	jmp .aa
-	%%str db %1, %2, 0
+	%%str db %1, 0
 .aa:
 	push 0
 	push %%str
